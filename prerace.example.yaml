@@ -1,0 +1,35 @@
+# Example config for `python main.py prerace`.
+# Copy this file, fill in your own fleet/courses, and pass it via --config.
+
+countries: [FIN]          # ORC country codes to load boats from
+
+reference: FIN-13004      # sail number of the reference boat (time deltas shown relative to this boat)
+fleet:                    # sail numbers to compare -- include the reference here too
+  - FIN-13004
+  - FIN-12149
+
+# Inshore: fixed club-course geometry. At run time you supply the forecast
+# average TWS (--tws, --wind-unit) and average wind direction (--wind-dir);
+# each leg's TWA is derived from its bearing vs that single wind direction.
+#   python main.py prerace --config prerace.example.yaml --inshore club_wl --tws 12 --wind-dir 200
+inshore_courses:
+  club_wl:
+    legs:
+      - {distance_nm: 1.0, bearing_deg: 20}
+      - {distance_nm: 1.0, bearing_deg: 200}
+      - {distance_nm: 1.0, bearing_deg: 20}
+      - {distance_nm: 1.0, bearing_deg: 200}
+
+# Offshore: published ORC Weather Routing ratings (s/NM, one per boat, for
+# this specific course) applied cumulatively at each mark rounding.
+# distance_nm per mark is CUMULATIVE from the start.
+#   python main.py prerace --config prerace.example.yaml --offshore example_race
+offshore_courses:
+  example_race:
+    marks:
+      - {name: "Mark 1", distance_nm: 12.3}
+      - {name: "Mark 2", distance_nm: 45.0}
+      - {name: "Finish", distance_nm: 78.5}
+    wr_ratings:
+      FIN-13004: 550.2
+      FIN-12149: 561.0

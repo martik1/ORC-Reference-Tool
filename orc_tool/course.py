@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from rich.table import Table
 
 from orc_tool.models import Boat
+from orc_tool.pcs import PcsEntry, PcsResult, score_pcs_race
 from orc_tool.scoring import Kind, ScoringOption, get_allowance
 
 
@@ -18,6 +19,45 @@ def leg_twa(heading_deg: float, wind_from_deg: float) -> float:
     """True wind angle (0-180) for sailing `heading_deg` with wind from `wind_from_deg`."""
     rel = (heading_deg - wind_from_deg + 180) % 360 - 180
     return abs(rel)
+
+
+@dataclass
+class CourseLeg:
+    """A leg of a constructed course: distance, compass bearing, and the true
+    wind direction expected on that leg (which may vary leg to leg)."""
+
+    distance_nm: float
+    bearing_deg: float
+    wind_from_deg: float
+
+
+def constructed_course_curve(boat: Boat, legs: list[CourseLeg]) -> tuple[list[float], list[float]]:
+    """Build this boat's own time-allowance curve (s/NM) for a specific,
+    named-mark course geometry, at each of its rated wind speeds.
+
+    For each TWS, every leg's TWA is derived from that leg's bearing and
+    wind direction, the boat's predicted leg time is summed across all legs,
+    and the total is divided by total course distance -- a distance-weighted
+    average allowance, exactly as PCS uses for the Windward/Leeward and All
+    Purpose pre-defined courses, but for this course's actual leg geometry.
+    """
+    total_distance = sum(leg.distance_nm for leg in legs)
+    values = []
+    for tws in boat.polar.wind_speeds:
+        total_seconds = 0.0
+        for leg in legs:
+            twa = leg_twa(leg.bearing_deg, leg.wind_from_deg)
+            speed = boat.polar.speed_knots(tws, twa)
+            total_seconds += (leg.distance_nm / speed) * 3600.0
+        values.append(total_seconds / total_distance)
+    return list(boat.polar.wind_speeds), values
+
+
+def score_constructed_course(entries: list[PcsEntry], legs: list[CourseLeg]) -> list[PcsResult]:
+    """Score actual race results against a constructed course using PCS:
+    build each boat's course-specific curve, then apply Scoring Wind."""
+    total_distance = sum(leg.distance_nm for leg in legs)
+    return score_pcs_race(entries, total_distance, lambda boat: constructed_course_curve(boat, legs))
 
 
 @dataclass

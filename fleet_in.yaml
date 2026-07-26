@@ -1,0 +1,47 @@
+# IN division fleet, reference boat AMSERV TOYOTA ST (EST 379).
+# Countries the fleet's certificates are actually registered under -- note
+# "EST 919" (RTS Baltic) is a Latvian certificate despite its EST-style sail
+# number, so LAT has to stay in this list even though it also covers itself.
+countries: [LTU, LAT, EST, GER, SWE, DEN]
+
+reference: EST 379  # AMSERV TOYOTA ST
+
+fleet:
+  - LTU 2395   # TANGO 2
+  - LAT 717    # Estelle
+  - EST 467    # ADELE
+  - LTU 2235   # TE KYLA
+  - LTU 2003   # TOJANA
+  - LTU 1111   # NIDA III
+  - LAT 763    # Slam
+  - GER 6767   # MATCHBOX
+  - EST 646    # SHADOW
+  - EST-774    # SUGAR (certificate SailNo uses a hyphen)
+  - LTU 2434   # TEGU
+  - EST 919    # RTS Baltic (LAT-registered certificate)
+  - EST 379    # AMSERV TOYOTA ST (reference)
+  - LTU 2559   # LA CALMA
+  - EST 462    # Lumi
+  - EST 750    # Faro
+  - SWE 88     # Garmin Team Pro4u
+  - SWE 91811  # THE TROOPER
+  - LTU 2601   # ARABELA-CITADELE (certificate name: ARABELA)
+  - LTU 2322   # SAMSARA
+  - DEN 201    # STONY X
+  - EST 935    # JAZZ
+  - LTU 3111   # DIA
+  - LTU 2777   # IDEFIX
+
+# PLACEHOLDER course -- distances/bearings are not real marks, just a
+# generic two-lap windward/leeward so `--inshore club_wl` has something to
+# run. Replace distance_nm/bearing_deg with your actual course's marks.
+inshore_courses:
+  club_wl:
+    legs:
+      - {distance_nm: 1.0, bearing_deg: 0}
+      - {distance_nm: 1.0, bearing_deg: 180}
+      - {distance_nm: 1.0, bearing_deg: 0}
+      - {distance_nm: 1.0, bearing_deg: 180}
+
+# Add offshore_courses here when you have a course with published Weather
+# Routing ratings -- see prerace.example.yaml for the schema.

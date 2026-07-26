@@ -5,7 +5,7 @@ import sys
 
 from rich.console import Console
 
-from orc_tool import client, compare, course, crossover, polar, vmg
+from orc_tool import client, compare, course, courseplot, crossover, polar, prerace, vmg
 from orc_tool.models import Boat
 from orc_tool.scoring import Kind, ScoringOption, load_options
 
@@ -25,6 +25,12 @@ def _catalog(country_ids: list[str]) -> list[dict]:
     # ScoringOptions catalog is identical across countries' responses; reuse the first one.
     data = client.fetch_country(country_ids[0])
     return data["ScoringOptions"]
+
+
+def _build_options(catalog: list[dict], country_ids: list[str]) -> list[ScoringOption]:
+    """Universal ORC options (All Purpose, Windward/Leeward, ...) plus each loaded
+    country's own local options (Triple Number, Single Number, national variants)."""
+    return load_options(catalog, country_filter=["ORC", *country_ids])
 
 
 def _prompt_distance_or_duration(option: ScoringOption) -> dict:
@@ -61,7 +67,7 @@ def interactive_main():
         return
 
     catalog = _catalog(country_ids)
-    options = load_options(catalog, country_filter="ORC")
+    options = _build_options(catalog, country_ids)
 
     while True:
         query = questionary.text("Search boats by name/sail number (blank = show all):").ask() or ""
@@ -170,7 +176,72 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--duration", type=float, help="Reference boat's elapsed time (min), for TOT options")
     p.add_argument("--plot", action="store_true", help="Also show a polar plot of the selected boats")
     p.add_argument("--vmg", action="store_true", help="Also print the reference boat's VMG table")
+
+    subparsers = p.add_subparsers(dest="command")
+    prerace_p = subparsers.add_parser(
+        "prerace", help="Predicted time-allowance deltas against a fleet, before a race"
+    )
+    prerace_p.add_argument("--config", required=True, help="Path to a prerace YAML config (see prerace.example.yaml)")
+    prerace_p.add_argument("--inshore", help="Name of an inshore_courses entry in the config")
+    prerace_p.add_argument("--offshore", help="Name of an offshore_courses entry in the config")
+    prerace_p.add_argument("--tws", type=float, help="Forecast average true wind speed (inshore only)")
+    prerace_p.add_argument(
+        "--wind-unit", choices=["kt", "m/s"], default="kt", help="Unit for --tws (default: kt)"
+    )
+    prerace_p.add_argument("--wind-dir", type=float, help="Forecast average true wind direction, FROM, in degrees (inshore only)")
+    prerace_p.add_argument("--plot", action="store_true", help="Also show a diagram of the selected course")
+    prerace_p.add_argument("--plot-out", help="Save the course diagram to this path instead of/as well as showing it")
     return p
+
+
+def run_prerace(args: argparse.Namespace):
+    import yaml
+
+    with open(args.config, encoding="utf-8") as fh:
+        config = yaml.safe_load(fh)
+
+    with console.status("Loading fleet certificates..."):
+        boats, reference = prerace.resolve_boats(config)
+
+    if args.inshore:
+        if args.tws is None or args.wind_dir is None:
+            console.print("[red]--inshore requires --tws and --wind-dir[/red]")
+            sys.exit(1)
+        available = config.get("inshore_courses", {})
+        if args.inshore not in available:
+            console.print(
+                f"[red]No inshore course named {args.inshore!r} in {args.config}[/red]"
+                f" (available: {', '.join(sorted(available)) or 'none'})"
+            )
+            sys.exit(1)
+        course_cfg = available[args.inshore]
+        tws_kt = prerace.to_knots(args.tws, args.wind_unit)
+        legs = [
+            course.CourseLeg(
+                distance_nm=leg["distance_nm"], bearing_deg=leg["bearing_deg"], wind_from_deg=args.wind_dir
+            )
+            for leg in course_cfg["legs"]
+        ]
+        rows = prerace.inshore_deltas(boats, reference, legs, tws_kt)
+        console.print(prerace.render_inshore_table(reference, rows, tws_kt, args.wind_dir))
+        if args.plot or args.plot_out:
+            courseplot.plot_inshore_course(legs, show=args.plot, save_path=args.plot_out)
+    elif args.offshore:
+        available = config.get("offshore_courses", {})
+        if args.offshore not in available:
+            console.print(
+                f"[red]No offshore course named {args.offshore!r} in {args.config}[/red]"
+                f" (available: {', '.join(sorted(available)) or 'none'})"
+            )
+            sys.exit(1)
+        course_cfg = available[args.offshore]
+        rows = prerace.offshore_deltas(boats, reference, course_cfg["marks"], course_cfg["wr_ratings"])
+        console.print(prerace.render_offshore_table(reference, boats, rows))
+        if args.plot or args.plot_out:
+            courseplot.plot_offshore_course(course_cfg["marks"], show=args.plot, save_path=args.plot_out)
+    else:
+        console.print("[red]Specify --inshore NAME or --offshore NAME[/red]")
+        sys.exit(1)
 
 
 def non_interactive_main(args: argparse.Namespace):
@@ -220,7 +291,9 @@ def non_interactive_main(args: argparse.Namespace):
 def main():
     parser = build_arg_parser()
     args = parser.parse_args()
-    if args.countries and args.boats and args.reference and args.option_name and args.tws is not None:
+    if getattr(args, "command", None) == "prerace":
+        run_prerace(args)
+    elif args.countries and args.boats and args.reference and args.option_name and args.tws is not None:
         non_interactive_main(args)
     else:
         interactive_main()

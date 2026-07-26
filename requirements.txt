@@ -2,3 +2,5 @@ requests>=2.31
 matplotlib>=3.8
 rich>=13.7
 questionary>=2.0
+pytest>=8.0
+pyyaml>=6.0
